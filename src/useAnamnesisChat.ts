@@ -9,6 +9,7 @@ interface Message {
   content: string;
   timestamp: Date;
   isError?: boolean;
+  thinking?: string; // Contenido de pensamiento opcional
 }
 
 interface ServerResponse {
@@ -161,21 +162,121 @@ export const useAnamnesisChat = () => {
         if (answer) {
           // Limpiar la respuesta final de marcadores de pensamiento
           let cleanAnswer = answer;
+          
+          console.log('🧹 Limpiando respuesta final. Respuesta original:', answer.substring(0, 200) + '...');
+          
+          // Patrones más efectivos para limpiar el pensamiento
           const thinkingPatterns = [
-            /<thinking>[\s\S]*?<\/thinking>/g,
-            /^[\s\S]*?<answer>/i,
-            /^[\s\S]*?\n\n# Respuesta/i,
-            /^[\s\S]*?\n\nRespuesta:/i,
-            /^[\s\S]*?\n\n\*\*Respuesta:\*\*/i
+            // Patrones específicos de DeepSeek R1
+            /<thinking>[\s\S]*?<\/thinking>/gi,
+            /<answer>([\s\S]*?)$/i, // Capturar solo lo que viene después de <answer>
+            
+            // Patrones generales de estructura
+            /^[\s\S]*?(?:\n\n# |# )(.*?)$/i,
+            /^[\s\S]*?(?:\n\nRespuesta:?\s*)([\s\S]*)$/i,
+            /^[\s\S]*?(?:\n\n\*\*Respuesta:?\*\*\s*)([\s\S]*)$/i,
+            /^[\s\S]*?(?:\n\nAnálisis completo:?\s*)([\s\S]*)$/i,
+            /^[\s\S]*?(?:\n\nConclusión:?\s*)([\s\S]*)$/i,
+            /^[\s\S]*?(?:\n\nMi respuesta:?\s*)([\s\S]*)$/i,
+            /^[\s\S]*?(?:\n\nRespuesta final:?\s*)([\s\S]*)$/i,
+            
+            // Patrón para capturar después de títulos en mayúscula seguidos de :
+            /^[\s\S]*?(?:\n\n[A-Z][a-zA-Z\s]+:\s*)([\s\S]*)$/i,
           ];
           
+          // Intentar cada patrón para extraer la respuesta limpia
           for (const pattern of thinkingPatterns) {
-            cleanAnswer = cleanAnswer.replace(pattern, '').trim();
+            if (pattern.toString().includes('$')) {
+              // Es un patrón de captura - usar el grupo capturado
+              const match = cleanAnswer.match(pattern);
+              if (match && match[1]) {
+                cleanAnswer = match[1].trim();
+                console.log('✅ Patrón de captura aplicado:', pattern.toString());
+                break;
+              }
+            } else {
+              // Es un patrón de reemplazo - eliminar la parte matched
+              const originalLength = cleanAnswer.length;
+              cleanAnswer = cleanAnswer.replace(pattern, '').trim();
+              if (cleanAnswer.length !== originalLength) {
+                console.log('✅ Patrón de reemplazo aplicado:', pattern.toString());
+                break;
+              }
+            }
+          }
+          
+          // Fallback: si la respuesta sigue siendo muy larga o contiene pensamiento, 
+          // buscar la última parte que parece ser la respuesta real
+          if (cleanAnswer.length > answer.length * 0.8 || 
+              cleanAnswer.includes('thinking') || 
+              cleanAnswer.includes('análisis') ||
+              cleanAnswer.includes('considerando')) {
+            
+            console.log('🔍 Aplicando limpieza fallback...');
+            
+            // Buscar párrafos que parezcan respuesta final
+            const lines = cleanAnswer.split('\n');
+            const responseLines = [];
+            let foundStart = false;
+            
+            for (let i = lines.length - 1; i >= 0; i--) {
+              const line = lines[i].trim();
+              
+              // Líneas que indican inicio de respuesta final
+              if (!foundStart && line.length > 20 && 
+                  !line.toLowerCase().includes('análisis') &&
+                  !line.toLowerCase().includes('considerando') &&
+                  !line.toLowerCase().includes('thinking') &&
+                  !line.startsWith('**') &&
+                  !line.endsWith(':')) {
+                foundStart = true;
+              }
+              
+              if (foundStart) {
+                responseLines.unshift(line);
+              }
+              
+              // Si encontramos una línea de separación clara, parar
+              if (foundStart && (line.includes('---') || line.match(/^\s*[#*]+\s*/))) {
+                break;
+              }
+            }
+            
+            if (responseLines.length > 0) {
+              cleanAnswer = responseLines.join('\n').trim();
+              console.log('✅ Limpieza fallback aplicada');
+            }
+          }
+          
+          console.log('✨ Respuesta final limpia:', cleanAnswer.substring(0, 200) + '...');
+          
+          // Extraer el contenido de pensamiento si existe
+          let thinkingContent = '';
+          
+          // Buscar contenido entre <thinking> y </thinking>
+          const thinkingMatch = answer.match(/<thinking>([\s\S]*?)<\/thinking>/i);
+          if (thinkingMatch && thinkingMatch[1]) {
+            thinkingContent = thinkingMatch[1].trim();
+          } else {
+            // Si no hay tags específicos, pero la respuesta original es mucho más larga,
+            // probablemente el contenido extra sea el pensamiento
+            if (answer.length > cleanAnswer.length * 1.5) {
+              // Intentar extraer la parte que parece ser pensamiento
+              const beforeAnswer = answer.substring(0, answer.indexOf(cleanAnswer.substring(0, 50)));
+              if (beforeAnswer.length > 100) {
+                thinkingContent = beforeAnswer.trim();
+              }
+            }
           }
           
           setMessages(prev => [
             ...prev,
-            { role: 'assistant', content: cleanAnswer, timestamp: new Date() }
+            { 
+              role: 'assistant', 
+              content: cleanAnswer, 
+              timestamp: new Date(),
+              thinking: thinkingContent || undefined // Solo incluir si hay contenido
+            }
           ]);
         }
         

@@ -8,6 +8,59 @@ interface ChatInterfaceProps {
   userEmail?: string;
 }
 
+// Componente para mostrar/ocultar el pensamiento del modelo
+const ThinkingToggle: React.FC<{ thinking: string }> = ({ thinking }) => {
+  const [isExpanded, setIsExpanded] = useState(false);
+
+  return (
+    <div style={{ marginTop: '8px', borderTop: '1px solid #e3f0f7', paddingTop: '8px' }}>
+      <button
+        onClick={() => setIsExpanded(!isExpanded)}
+        style={{
+          background: 'none',
+          border: 'none',
+          color: '#6b7280',
+          fontSize: '11px',
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '4px',
+          padding: '2px 0',
+          fontFamily: 'Inter, Arial, sans-serif',
+        }}
+      >
+        <span style={{ 
+          transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)',
+          transition: 'transform 0.2s ease',
+          fontSize: '10px'
+        }}>
+          ▶
+        </span>
+        Ver proceso de pensamiento
+      </button>
+      
+      {isExpanded && (
+        <div style={{
+          marginTop: '8px',
+          padding: '8px 12px',
+          background: '#f8fafc',
+          borderRadius: '8px',
+          border: '1px solid #e2e8f0',
+          fontSize: '11px',
+          color: '#64748b',
+          fontFamily: 'Monaco, Consolas, monospace',
+          lineHeight: '1.4',
+          whiteSpace: 'pre-wrap',
+          maxHeight: '200px',
+          overflow: 'auto',
+        }}>
+          {thinking}
+        </div>
+      )}
+    </div>
+  );
+};
+
 // Estilos minimalistas médicos consistentes con App.tsx
 
 const cardStyle: CSSProperties = {
@@ -510,6 +563,12 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onBack, onSignOut,
               }}>
                 {message.content}
               </div>
+              
+              {/* Mostrar pensamiento si existe (solo para mensajes del asistente) */}
+              {message.role === 'assistant' && message.thinking && (
+                <ThinkingToggle thinking={message.thinking} />
+              )}
+              
               <div style={{
                 fontSize: '12px',
                 opacity: 0.7,
