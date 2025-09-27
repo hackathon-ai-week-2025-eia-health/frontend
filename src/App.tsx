@@ -5,14 +5,16 @@ import { ChatInterface } from './ChatInterface';
 import { useAuth } from 'react-oidc-context';
 
 const containerStyle: CSSProperties = {
-  minHeight: '100vh',
+  height: '100vh',
   background: '#f7fbfd',
   display: 'flex',
   flexDirection: 'column',
   alignItems: 'center',
   justifyContent: 'center',
   fontFamily: 'Inter, Arial, sans-serif',
-  padding: '0 16px',
+  margin: 0,
+  padding: 0,
+  overflow: 'hidden',
 };
 
 const iconWrapperStyle: CSSProperties = {
@@ -97,7 +99,6 @@ const fullscreenMessageStyle: CSSProperties = {
   fontFamily: 'Inter, Arial, sans-serif',
   background: '#f7fbfd',
   color: '#183b56',
-  padding: '0 16px',
   textAlign: 'center',
 };
 

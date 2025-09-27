@@ -2,7 +2,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 
-const WEBSOCKET_URL = 'wss://cerbrymer1.execute-api.us-west-2.amazonaws.com/dev/';
+const WEBSOCKET_URL = 'wss://cerbrymer1.execute-api.us-west-2.amazonaws.com/dev';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -24,8 +24,21 @@ export const useAnamnesisChat = () => {
   const [isConnected, setIsConnected] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [streamingMessage, setStreamingMessage] = useState('');
+  const [isThinking, setIsThinking] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
   const currentUuidRef = useRef<string | null>(null);
+  const thinkingContentRef = useRef<string>('');
+  const thinkingTimeoutRef = useRef<number | null>(null);
+  const reconnectTimeoutRef = useRef<number | null>(null);
+  const isConnectingRef = useRef<boolean>(false);
+
+  // Refs para evitar dependencias en useCallback
+  const isThinkingRef = useRef<boolean>(false);
+  
+  // Sincronizar ref con state
+  useEffect(() => {
+    isThinkingRef.current = isThinking;
+  }, [isThinking]);
 
   // Manejar respuestas del servidor
   const handleServerResponse = useCallback((response: ServerResponse) => {
@@ -41,33 +54,146 @@ export const useAnamnesisChat = () => {
         console.log('🚀 Iniciando respuesta...');
         setIsLoading(true);
         setStreamingMessage('');
+        setIsThinking(true);
+        thinkingContentRef.current = '';
+        
+        // Timeout de seguridad: si después de 10 segundos sigue "pensando", pasar a respuesta
+        if (thinkingTimeoutRef.current) {
+          clearTimeout(thinkingTimeoutRef.current);
+        }
+        thinkingTimeoutRef.current = window.setTimeout(() => {
+          console.log('⏰ Timeout de pensamiento, pasando a respuesta...');
+          setIsThinking(false);
+          setStreamingMessage(thinkingContentRef.current || 'Procesando respuesta...');
+          thinkingContentRef.current = '';
+        }, 120000);
         break;
 
       case 'chunk':
-        // Streaming: agregar chunk al mensaje actual
-        setStreamingMessage(prev => prev + data);
+        if (data) {
+          console.log('📝 Chunk recibido:', data.substring(0, 100) + (data.length > 100 ? '...' : ''));
+          
+          // Detectar si estamos en fase de pensamiento o respuesta final
+          const currentContent = thinkingContentRef.current + data;
+          
+          // Patrones más amplios para detectar el final del pensamiento
+          const thinkingEndPatterns = [
+            '</thinking>',
+            '<answer>',
+            '\n\n# ',
+            '\n\nRespuesta',
+            '\n\n**Respuesta',
+            '\n\nAnálisis',
+            'Respuesta final:',
+            'Mi respuesta:',
+            'Conclusión:',
+            // Patrones adicionales más flexibles
+            /\n\n[A-Z][a-z]+:/,  // Cualquier título que empiece con mayúscula seguido de ":"
+            /\n\n\*\*[A-Z]/,      // Texto en bold que empiece con mayúscula
+          ];
+          
+          const isEndOfThinking = thinkingEndPatterns.some(pattern => {
+            if (typeof pattern === 'string') {
+              return currentContent.includes(pattern);
+            } else {
+              return pattern.test(currentContent);
+            }
+          });
+          
+          // También considerar que después de 3 segundos en pensamiento, cambiar a respuesta
+          if (isThinkingRef.current && (isEndOfThinking || currentContent.length > 1000)) {
+            console.log('🧠 Finalizando pensamiento, iniciando respuesta...', { 
+              isEndOfThinking, 
+              contentLength: currentContent.length 
+            });
+            setIsThinking(false);
+            
+            // Limpiar timeout
+            if (thinkingTimeoutRef.current) {
+              clearTimeout(thinkingTimeoutRef.current);
+              thinkingTimeoutRef.current = null;
+            }
+            
+            // Si encontramos un patrón, extraer la respuesta después del patrón
+            let finalResponse = data;
+            if (isEndOfThinking) {
+              for (const pattern of thinkingEndPatterns) {
+                if (typeof pattern === 'string' && currentContent.includes(pattern)) {
+                  const parts = currentContent.split(pattern);
+                  finalResponse = parts[parts.length - 1] || data;
+                  break;
+                } else if (pattern instanceof RegExp && pattern.test(currentContent)) {
+                  const match = currentContent.match(pattern);
+                  if (match) {
+                    finalResponse = currentContent.substring(match.index! + match[0].length);
+                  }
+                  break;
+                }
+              }
+            }
+            
+            setStreamingMessage(finalResponse.trim());
+            thinkingContentRef.current = '';
+          } else if (isThinkingRef.current) {
+            // Seguimos en fase de pensamiento - solo almacenar, no mostrar
+            thinkingContentRef.current = currentContent;
+            console.log('🤔 Pensando... (caracteres:', currentContent.length, ')');
+          } else {
+            // Fase de respuesta final - mostrar streaming normal
+            setStreamingMessage(prev => prev + data);
+          }
+        }
         break;
 
       case 'end':
         console.log('✅ Respuesta completa recibida');
         setIsLoading(false);
+        setIsThinking(false);
         setStreamingMessage('');
+        
+        // Limpiar timeout
+        if (thinkingTimeoutRef.current) {
+          clearTimeout(thinkingTimeoutRef.current);
+          thinkingTimeoutRef.current = null;
+        }
         
         // Agregar respuesta completa al historial
         if (answer) {
+          // Limpiar la respuesta final de marcadores de pensamiento
+          let cleanAnswer = answer;
+          const thinkingPatterns = [
+            /<thinking>[\s\S]*?<\/thinking>/g,
+            /^[\s\S]*?<answer>/i,
+            /^[\s\S]*?\n\n# Respuesta/i,
+            /^[\s\S]*?\n\nRespuesta:/i,
+            /^[\s\S]*?\n\n\*\*Respuesta:\*\*/i
+          ];
+          
+          for (const pattern of thinkingPatterns) {
+            cleanAnswer = cleanAnswer.replace(pattern, '').trim();
+          }
+          
           setMessages(prev => [
             ...prev,
-            { role: 'assistant', content: answer, timestamp: new Date() }
+            { role: 'assistant', content: cleanAnswer, timestamp: new Date() }
           ]);
         }
         
         currentUuidRef.current = null;
+        thinkingContentRef.current = '';
         break;
 
       case 'error':
         console.error('❌ Error del servidor:', message);
         setIsLoading(false);
+        setIsThinking(false);
         setStreamingMessage('');
+        
+        // Limpiar timeout
+        if (thinkingTimeoutRef.current) {
+          clearTimeout(thinkingTimeoutRef.current);
+          thinkingTimeoutRef.current = null;
+        }
         
         setMessages(prev => [
           ...prev,
@@ -75,53 +201,105 @@ export const useAnamnesisChat = () => {
         ]);
         
         currentUuidRef.current = null;
+        thinkingContentRef.current = '';
         break;
 
       default:
         console.warn('Tipo de mensaje desconocido:', type);
     }
-  }, []);
+  }, []); // Sin dependencias - usamos refs para evitar re-creaciones
 
   // Conectar al WebSocket
   const connect = useCallback(() => {
+    console.log('🔄 Intentando conectar WebSocket a:', WEBSOCKET_URL);
+    
+    // Evitar conexiones múltiples simultáneas
+    if (isConnectingRef.current) {
+      console.log('⚠ Ya hay una conexión en progreso');
+      return;
+    }
+    
     if (wsRef.current?.readyState === WebSocket.OPEN) {
+      console.log('✅ WebSocket ya está conectado');
+      setIsConnected(true);
       return;
     }
 
-    wsRef.current = new WebSocket(WEBSOCKET_URL);
+    // Limpiar timeout de reconexión anterior
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current);
+      reconnectTimeoutRef.current = null;
+    }
 
-    wsRef.current.onopen = () => {
-      console.log('✅ WebSocket conectado');
-      setIsConnected(true);
-    };
+    // Cerrar conexión existente si hay una
+    if (wsRef.current && wsRef.current.readyState !== WebSocket.CLOSED) {
+      console.log('🔄 Cerrando conexión WebSocket existente');
+      wsRef.current.close();
+    }
 
-    wsRef.current.onclose = (event) => {
-      console.log('❌ WebSocket desconectado:', event.code, event.reason);
-      setIsConnected(false);
-      setIsLoading(false);
-      
-      // Reconexión automática después de 3 segundos
-      setTimeout(() => {
-        if (wsRef.current?.readyState !== WebSocket.OPEN) {
-          connect();
+    isConnectingRef.current = true;
+
+    try {
+      wsRef.current = new WebSocket(WEBSOCKET_URL);
+      console.log('🔄 WebSocket creado, esperando conexión...');
+
+      wsRef.current.onopen = () => {
+        console.log('✅ WebSocket conectado exitosamente');
+        setIsConnected(true);
+        isConnectingRef.current = false;
+        
+        // Limpiar cualquier timeout de reconexión pendiente
+        if (reconnectTimeoutRef.current) {
+          clearTimeout(reconnectTimeoutRef.current);
+          reconnectTimeoutRef.current = null;
         }
-      }, 3000);
-    };
+      };
 
-    wsRef.current.onerror = (error) => {
-      console.error('❌ Error WebSocket:', error);
+      wsRef.current.onclose = (event) => {
+        console.log('❌ WebSocket desconectado:', {
+          code: event.code,
+          reason: event.reason,
+          wasClean: event.wasClean
+        });
+        setIsConnected(false);
+        setIsLoading(false);
+        isConnectingRef.current = false;
+        
+        // Solo reconectar si no fue un cierre limpio y no hay reconexión en progreso
+        if (!event.wasClean && event.code !== 1000 && !reconnectTimeoutRef.current) {
+          console.log('🔄 Programando reconexión WebSocket...');
+          reconnectTimeoutRef.current = window.setTimeout(() => {
+            reconnectTimeoutRef.current = null;
+            if (wsRef.current?.readyState !== WebSocket.OPEN && !isConnectingRef.current) {
+              connect();
+            }
+          }, 3000);
+        }
+      };
+
+      wsRef.current.onerror = (error) => {
+        console.error('❌ Error WebSocket:', error);
+        console.error('URL:', WEBSOCKET_URL);
+        setIsConnected(false);
+        setIsLoading(false);
+        isConnectingRef.current = false;
+      };
+
+      wsRef.current.onmessage = (event) => {
+        try {
+          console.log('📥 Mensaje recibido del WebSocket:', event.data);
+          const response = JSON.parse(event.data);
+          handleServerResponse(response);
+        } catch (error) {
+          console.error('Error parseando respuesta:', error);
+        }
+      };
+    } catch (error) {
+      console.error('❌ Error creando WebSocket:', error);
       setIsConnected(false);
       setIsLoading(false);
-    };
-
-    wsRef.current.onmessage = (event) => {
-      try {
-        const response = JSON.parse(event.data);
-        handleServerResponse(response);
-      } catch (error) {
-        console.error('Error parseando respuesta:', error);
-      }
-    };
+      isConnectingRef.current = false;
+    }
   }, [handleServerResponse]);
 
   // Enviar mensaje
@@ -171,33 +349,153 @@ export const useAnamnesisChat = () => {
     setMessages([]);
     setStreamingMessage('');
     setIsLoading(false);
+    setIsThinking(false);
     currentUuidRef.current = null;
+    thinkingContentRef.current = '';
+    
+    // Limpiar timeouts
+    if (thinkingTimeoutRef.current) {
+      clearTimeout(thinkingTimeoutRef.current);
+      thinkingTimeoutRef.current = null;
+    }
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current);
+      reconnectTimeoutRef.current = null;
+    }
   }, []);
 
   // Desconectar WebSocket
   const disconnect = useCallback(() => {
+    console.log('🔌 Desconectando WebSocket manualmente');
+    // Limpiar todos los timeouts
+    if (thinkingTimeoutRef.current) {
+      clearTimeout(thinkingTimeoutRef.current);
+      thinkingTimeoutRef.current = null;
+    }
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current);
+      reconnectTimeoutRef.current = null;
+    }
+    
+    // Cerrar WebSocket
     if (wsRef.current) {
-      wsRef.current.close();
+      wsRef.current.close(1000, 'Manual disconnect'); // Cierre limpio
       wsRef.current = null;
     }
+    
     setIsConnected(false);
+    isConnectingRef.current = false;
   }, []);
 
   // Conectar automáticamente al montar el componente
   useEffect(() => {
-    connect();
+    console.log('🚀 Componente montado, iniciando conexión WebSocket');
+    
+    // Función interna para conectar (evita problemas de dependencias)
+    const initialConnect = () => {
+      console.log('🔄 Intentando conexión inicial WebSocket a:', WEBSOCKET_URL);
+      
+      if (isConnectingRef.current) {
+        console.log('⚠ Ya hay una conexión en progreso');
+        return;
+      }
+      
+      if (wsRef.current?.readyState === WebSocket.OPEN) {
+        console.log('✅ WebSocket ya está conectado');
+        setIsConnected(true);
+        return;
+      }
+
+      isConnectingRef.current = true;
+
+      try {
+        wsRef.current = new WebSocket(WEBSOCKET_URL);
+        
+        wsRef.current.onopen = () => {
+          console.log('✅ WebSocket conectado exitosamente (inicial)');
+          setIsConnected(true);
+          isConnectingRef.current = false;
+        };
+
+        wsRef.current.onclose = (event) => {
+          console.log('❌ WebSocket desconectado (inicial):', {
+            code: event.code,
+            reason: event.reason,
+            wasClean: event.wasClean
+          });
+          setIsConnected(false);
+          setIsLoading(false);
+          isConnectingRef.current = false;
+          
+          // Solo reconectar si no fue un cierre limpio
+          if (!event.wasClean && event.code !== 1000) {
+            console.log('🔄 Programando reconexión...');
+            setTimeout(() => {
+              if (!wsRef.current || wsRef.current.readyState === WebSocket.CLOSED) {
+                initialConnect(); // Usar la función interna para reconexiones
+              }
+            }, 3000);
+          }
+        };
+
+        wsRef.current.onerror = (error) => {
+          console.error('❌ Error WebSocket (inicial):', error);
+          setIsConnected(false);
+          setIsLoading(false);
+          isConnectingRef.current = false;
+        };
+
+        wsRef.current.onmessage = (event) => {
+          try {
+            const response = JSON.parse(event.data);
+            handleServerResponse(response);
+          } catch (error) {
+            console.error('Error parseando respuesta:', error);
+          }
+        };
+      } catch (error) {
+        console.error('❌ Error creando WebSocket (inicial):', error);
+        setIsConnected(false);
+        setIsLoading(false);
+        isConnectingRef.current = false;
+      }
+    };
+
+    // Conectar solo una vez al montar
+    initialConnect();
     
     // Cleanup al desmontar
     return () => {
-      disconnect();
+      console.log('🧹 Limpiando WebSocket al desmontar componente');
+      
+      // Limpiar timeouts
+      if (thinkingTimeoutRef.current) {
+        clearTimeout(thinkingTimeoutRef.current);
+        thinkingTimeoutRef.current = null;
+      }
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+        reconnectTimeoutRef.current = null;
+      }
+      
+      // Cerrar WebSocket
+      if (wsRef.current) {
+        wsRef.current.close(1000, 'Component unmount');
+        wsRef.current = null;
+      }
+      
+      setIsConnected(false);
+      isConnectingRef.current = false;
     };
-  }, [connect, disconnect]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Sin dependencias - handleServerResponse es ahora estable
 
   return {
     messages,
     streamingMessage,
     isConnected,
     isLoading,
+    isThinking,
     sendMessage,
     clearChat,
     connect,

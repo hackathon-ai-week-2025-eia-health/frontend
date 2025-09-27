@@ -9,20 +9,13 @@ interface ChatInterfaceProps {
 }
 
 // Estilos minimalistas médicos consistentes con App.tsx
-const containerStyle: CSSProperties = {
-  minHeight: '100vh',
-  background: '#f7fbfd',
-  display: 'flex',
-  flexDirection: 'column',
-  fontFamily: 'Inter, Arial, sans-serif',
-};
 
 const cardStyle: CSSProperties = {
   background: '#fff',
   borderRadius: 20,
   boxShadow: '0 2px 12px rgba(24, 59, 86, 0.07)',
   padding: '32px 28px',
-  margin: '0 16px',
+  margin: '0 auto',
 };
 
 const titleStyle: CSSProperties = {
@@ -57,7 +50,7 @@ const buttonStyle: CSSProperties = {
   padding: '12px 24px',
   cursor: 'pointer',
   boxShadow: '0 2px 8px rgba(24, 59, 86, 0.08)',
-  transition: 'background 0.2s',
+  transition: 'all 0.3s ease',
 };
 
 const iconWrapperStyle: CSSProperties = {
@@ -81,8 +74,10 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onBack, onSignOut,
     streamingMessage,
     isConnected,
     isLoading,
+    isThinking,
     sendMessage,
-    clearChat
+    clearChat,
+    connect
   } = useAnamnesisChat();
 
   // Auto-scroll al final cuando lleguen nuevos mensajes
@@ -106,8 +101,26 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onBack, onSignOut,
   };
 
   return (
-    <div style={containerStyle}>
-      {/* Header */}
+    <>
+      <style>
+        {`
+          @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+          }
+        `}
+      </style>
+      <div style={{
+        height: '100vh',
+        background: '#f7fbfd',
+        display: 'flex',
+        flexDirection: 'column',
+        fontFamily: 'Inter, Arial, sans-serif',
+        margin: 0,
+        padding: 0,
+        overflow: 'hidden', // Evita el scroll en el contenedor principal
+      }}>
+      {/* Header Fijo */}
       <div style={{
         background: '#fff',
         padding: '20px 24px',
@@ -116,6 +129,8 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onBack, onSignOut,
         alignItems: 'center',
         justifyContent: 'space-between',
         boxShadow: '0 2px 4px rgba(24, 59, 86, 0.05)',
+        flexShrink: 0, // No se comprime
+        zIndex: 10,
       }}>
         <div style={{ display: 'flex', alignItems: 'center' }}>
           {onBack && (
@@ -150,14 +165,35 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onBack, onSignOut,
               }}>
                 Asistente de Anamnesis
               </h2>
-              <p style={{
-                color: isConnected ? '#10b981' : '#ef4444',
-                fontSize: '14px',
-                margin: 0,
-                marginTop: '4px',
-              }}>
-                {isConnected ? '● Conectado' : '● Desconectado'}
-              </p>
+              <div style={{ display: 'flex', alignItems: 'center', marginTop: '4px' }}>
+                <p style={{
+                  color: isConnected ? '#10b981' : '#ef4444',
+                  fontSize: '14px',
+                  margin: 0,
+                }}>
+                  {isConnected ? '● Conectado' : '● Desconectado'}
+                </p>
+                {!isConnected && (
+                  <button
+                    onClick={() => {
+                      console.log('🔄 Reconectando manualmente...');
+                      connect();
+                    }}
+                    style={{
+                      background: '#183b56',
+                      color: '#fff',
+                      border: 'none',
+                      borderRadius: '4px',
+                      padding: '2px 8px',
+                      fontSize: '10px',
+                      marginLeft: '8px',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Reconectar
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -214,23 +250,26 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onBack, onSignOut,
         </div>
       </div>
 
-      {/* Messages Container */}
+      {/* Messages Container - Área con scroll independiente */}
       <div style={{
         flex: 1,
         overflowY: 'auto',
-        padding: '20px',
+        overflowX: 'hidden',
+        padding: '20px 24px',
         display: 'flex',
         flexDirection: 'column',
         gap: '16px',
+        minHeight: 0, // Importante para que funcione el flex correctamente
       }}>
         {messages.length === 0 && !streamingMessage && !hasConsent && (
           <div style={{
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
-            justifyContent: 'center',
-            padding: '40px 16px',
-            flex: 1,
+            justifyContent: 'flex-start',
+            padding: '40px 20px',
+            overflowY: 'auto',
+            height: '100%',
           }}>
             <div style={{
               background: '#e3f0f7',
@@ -244,55 +283,69 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onBack, onSignOut,
             }}>
               <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
                 <circle cx="32" cy="32" r="32" fill="#b3d4e6" />
-                <rect x="28" y="16" width="8" height="32" rx="4" fill="#fff" />
-                <rect x="16" y="28" width="32" height="8" rx="4" fill="#fff" />
+                <path d="M32 16L28 20H24V44H40V20H36L32 16ZM32 19L34 21H38V42H26V21H30L32 19Z" fill="#183b56"/>
+                <circle cx="32" cy="28" r="2" fill="#183b56"/>
+                <rect x="29" y="32" width="6" height="2" fill="#183b56"/>
+                <rect x="29" y="36" width="6" height="2" fill="#183b56"/>
               </svg>
             </div>
             <h1 style={titleStyle}>Consentimiento Informado</h1>
 
-            <div style={{...cardStyle, maxWidth: 600, textAlign: 'left'}}>
-              <div style={{ marginBottom: 18 }}>
-                <span style={sectionTitleStyle}>Aclaración del Agente y Propósito</span>
-                <p style={paragraphStyle}>
+            <div style={{...cardStyle, maxWidth: 700, textAlign: 'left'}}>
+              <div style={{ marginBottom: 24 }}>
+                <span style={{...sectionTitleStyle, display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px'}}>
+                  🩺 Aclaración del Agente y Propósito
+                </span>
+                <p style={{...paragraphStyle, background: '#f8fafc', padding: '16px', borderRadius: '12px', border: '1px solid #e2e8f0'}}>
                   Soy un asistente de inteligencia artificial diseñado para realizar anamnesis básicas y recopilar información médica de manera estructurada. Mi propósito es ayudarte a organizar tu información de salud y ofrecer orientación general.
                 </p>
               </div>
 
-              <div style={{ marginBottom: 18 }}>
-                <span style={{...sectionTitleStyle, color: '#dc2626'}}>⚠️ Limitaciones Importantes</span>
-                <p style={{...paragraphStyle, color: '#dc2626'}}>
+              <div style={{ marginBottom: 24 }}>
+                <span style={{...sectionTitleStyle, display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', color: '#dc2626'}}>
+                  ⚠️ Limitaciones Importantes
+                </span>
+                <p style={{...paragraphStyle, background: '#fef2f2', padding: '16px', borderRadius: '12px', border: '1px solid #fecaca', color: '#dc2626'}}>
                   <strong>Esta interacción NO sustituye la atención médica profesional.</strong> No realizo diagnósticos definitivos ni prescribo tratamientos. Siempre consulta con un profesional de la salud para evaluación y tratamiento adecuados.
                 </p>
               </div>
 
-              <div style={{ marginBottom: 18 }}>
-                <span style={sectionTitleStyle}>Alcance de la Interacción</span>
-                <p style={paragraphStyle}>
+              <div style={{ marginBottom: 24 }}>
+                <span style={{...sectionTitleStyle, display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px'}}>
+                  📊 Alcance de la Interacción
+                </span>
+                <p style={{...paragraphStyle, background: '#f0f9ff', padding: '16px', borderRadius: '12px', border: '1px solid #bae6fd'}}>
                   Realizaré una <strong>anamnesis básica</strong> para recopilar tu información médica y proporcionaré una <strong>estimación probabilística</strong> basada en los datos que compartas. Los resultados son orientativos y requieren validación médica profesional.
                 </p>
               </div>
 
-              <div>
-                <span style={sectionTitleStyle}>🔒 Manejo de Datos</span>
-                <p style={paragraphStyle}>
+              <div style={{ marginBottom: 0 }}>
+                <span style={{...sectionTitleStyle, display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px'}}>
+                  🔒 Privacidad y Manejo de Datos
+                </span>
+                <p style={{...paragraphStyle, background: '#f0fdf4', padding: '16px', borderRadius: '12px', border: '1px solid #bbf7d0'}}>
                   Tu información se maneja únicamente durante esta sesión. <strong>Todos los datos se eliminan automáticamente al finalizar la conversación.</strong> No se almacenan registros permanentes de tu información médica personal.
                 </p>
               </div>
             </div>
 
             <div style={{
-              textAlign: 'center',
+              ...cardStyle,
+              maxWidth: 700,
               marginTop: 24,
+              textAlign: 'center',
+              background: 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)',
+              border: '2px solid #cbd5e1',
             }}>
-              <p style={{...paragraphStyle, textAlign: 'center', marginBottom: 20}}>
-                <strong>¿Deseas continuar con la anamnesis?</strong>
+              <p style={{...paragraphStyle, textAlign: 'center', marginBottom: 16, fontSize: 18, fontWeight: 600}}>
+                ¿Deseas continuar con la anamnesis?
               </p>
-              <p style={{...paragraphStyle, fontSize: 15, textAlign: 'center', marginBottom: 24}}>
+              <p style={{...paragraphStyle, fontSize: 15, textAlign: 'center', marginBottom: 24, color: '#64748b'}}>
                 Al aceptar, confirmas que has leído y entendido las condiciones anteriores.
               </p>
               <div style={{
                 display: 'flex',
-                gap: '12px',
+                gap: '16px',
                 justifyContent: 'center',
                 flexWrap: 'wrap',
               }}>
@@ -301,15 +354,23 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onBack, onSignOut,
                   style={{
                     ...buttonStyle,
                     background: 'linear-gradient(90deg, #10b981 0%, #059669 100%)',
+                    fontSize: 16,
+                    fontWeight: 700,
+                    padding: '14px 32px',
+                    boxShadow: '0 4px 12px rgba(16, 185, 129, 0.2)',
                   }}
                   onMouseOver={(event) => {
                     event.currentTarget.style.background = 'linear-gradient(90deg, #059669 0%, #10b981 100%)';
+                    event.currentTarget.style.transform = 'translateY(-2px)';
+                    event.currentTarget.style.boxShadow = '0 6px 16px rgba(16, 185, 129, 0.3)';
                   }}
                   onMouseOut={(event) => {
                     event.currentTarget.style.background = 'linear-gradient(90deg, #10b981 0%, #059669 100%)';
+                    event.currentTarget.style.transform = 'translateY(0px)';
+                    event.currentTarget.style.boxShadow = '0 4px 12px rgba(16, 185, 129, 0.2)';
                   }}
                 >
-                  Acepto y Continúo
+                  ✓ Acepto y Continúo
                 </button>
                 <button
                   onClick={() => {
@@ -320,15 +381,23 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onBack, onSignOut,
                   style={{
                     ...buttonStyle,
                     background: 'linear-gradient(90deg, #ef4444 0%, #dc2626 100%)',
+                    fontSize: 16,
+                    fontWeight: 700,
+                    padding: '14px 32px',
+                    boxShadow: '0 4px 12px rgba(239, 68, 68, 0.2)',
                   }}
                   onMouseOver={(event) => {
                     event.currentTarget.style.background = 'linear-gradient(90deg, #dc2626 0%, #ef4444 100%)';
+                    event.currentTarget.style.transform = 'translateY(-2px)';
+                    event.currentTarget.style.boxShadow = '0 6px 16px rgba(239, 68, 68, 0.3)';
                   }}
                   onMouseOut={(event) => {
                     event.currentTarget.style.background = 'linear-gradient(90deg, #ef4444 0%, #dc2626 100%)';
+                    event.currentTarget.style.transform = 'translateY(0px)';
+                    event.currentTarget.style.boxShadow = '0 4px 12px rgba(239, 68, 68, 0.2)';
                   }}
                 >
-                  No Acepto
+                  ✗ No Acepto
                 </button>
               </div>
             </div>
@@ -340,9 +409,10 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onBack, onSignOut,
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
-            justifyContent: 'center',
-            padding: '40px 16px',
-            flex: 1,
+            justifyContent: 'flex-start',
+            padding: '40px 20px',
+            overflowY: 'auto',
+            height: '100%',
           }}>
             <div style={{
               background: '#e3f0f7',
@@ -452,8 +522,8 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onBack, onSignOut,
           </div>
         ))}
 
-        {/* Streaming Message */}
-        {streamingMessage && (
+        {/* Streaming Message o Pensando */}
+        {(streamingMessage || isThinking) && (
           <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
             <div style={{
               maxWidth: '70%',
@@ -468,7 +538,27 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onBack, onSignOut,
                 whiteSpace: 'pre-wrap',
                 lineHeight: '1.5',
               }}>
-                {streamingMessage}
+                {isThinking ? (
+                  <div style={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    gap: '8px',
+                    fontStyle: 'italic',
+                    color: '#6b7280'
+                  }}>
+                    <div style={{
+                      width: '12px',
+                      height: '12px',
+                      border: '2px solid #b3d4e6',
+                      borderTop: '2px solid #183b56',
+                      borderRadius: '50%',
+                      animation: 'spin 1s linear infinite'
+                    }}></div>
+                    Pensando...
+                  </div>
+                ) : (
+                  streamingMessage
+                )}
                 <span style={{ 
                   animation: 'blink 1s infinite',
                   marginLeft: '2px',
@@ -481,20 +571,29 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onBack, onSignOut,
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Input Form */}
+      {/* Input Form Fijo */}
       <form onSubmit={handleSendMessage} style={{
         background: '#fff',
-        padding: '20px',
+        padding: '20px 24px',
         borderTop: '1px solid #e3f0f7',
         display: 'flex',
         gap: '12px',
+        flexShrink: 0, // No se comprime
+        zIndex: 10,
+        boxShadow: '0 -2px 4px rgba(24, 59, 86, 0.05)',
       }}>
         <input
           type="text"
           value={inputMessage}
           onChange={(e) => setInputMessage(e.target.value)}
-          placeholder={isLoading ? 'Esperando respuesta...' : 'Escribe tu pregunta aquí...'}
-          disabled={isLoading || !isConnected}
+          placeholder={
+            !hasConsent 
+              ? 'Primero debes aceptar el consentimiento informado'
+              : isLoading 
+                ? 'Esperando respuesta...' 
+                : 'Escribe tu pregunta aquí...'
+          }
+          disabled={isLoading || !isConnected || !hasConsent}
           style={{
             flex: 1,
             padding: '12px 16px',
@@ -502,11 +601,13 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onBack, onSignOut,
             borderRadius: '24px',
             fontSize: '16px',
             outline: 'none',
-            background: isLoading || !isConnected ? '#f9fafb' : '#fff',
-            color: '#183b56',
+            background: isLoading || !isConnected || !hasConsent ? '#f9fafb' : '#fff',
+            color: !hasConsent ? '#9ca3af' : '#183b56',
           }}
           onFocus={(e) => {
-            e.target.style.borderColor = '#6ec1e4';
+            if (hasConsent) {
+              e.target.style.borderColor = '#6ec1e4';
+            }
           }}
           onBlur={(e) => {
             e.target.style.borderColor = '#e3f0f7';
@@ -514,9 +615,9 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onBack, onSignOut,
         />
         <button
           type="submit"
-          disabled={!inputMessage.trim() || isLoading || !isConnected}
+          disabled={!inputMessage.trim() || isLoading || !isConnected || !hasConsent}
           style={{
-            background: (!inputMessage.trim() || isLoading || !isConnected)
+            background: (!inputMessage.trim() || isLoading || !isConnected || !hasConsent)
               ? '#d1d5db'
               : 'linear-gradient(90deg, #6ec1e4 0%, #4a90e2 100%)',
             color: '#fff',
@@ -525,7 +626,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onBack, onSignOut,
             padding: '12px 20px',
             fontSize: '16px',
             fontWeight: 600,
-            cursor: (!inputMessage.trim() || isLoading || !isConnected) 
+            cursor: (!inputMessage.trim() || isLoading || !isConnected || !hasConsent) 
               ? 'not-allowed' 
               : 'pointer',
             minWidth: '80px',
@@ -545,5 +646,6 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onBack, onSignOut,
         `
       }} />
     </div>
+    </>
   );
 };
