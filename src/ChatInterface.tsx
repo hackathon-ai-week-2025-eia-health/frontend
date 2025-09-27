@@ -1,13 +1,79 @@
 import React, { useState, useRef, useEffect } from 'react';
+import type { CSSProperties } from 'react';
 import { useAnamnesisChat } from './useAnamnesisChat';
 
 interface ChatInterfaceProps {
   onBack?: () => void;
   onSignOut?: () => void;
+  userEmail?: string;
 }
 
-export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onBack, onSignOut }) => {
+// Estilos minimalistas médicos consistentes con App.tsx
+const containerStyle: CSSProperties = {
+  minHeight: '100vh',
+  background: '#f7fbfd',
+  display: 'flex',
+  flexDirection: 'column',
+  fontFamily: 'Inter, Arial, sans-serif',
+};
+
+const cardStyle: CSSProperties = {
+  background: '#fff',
+  borderRadius: 20,
+  boxShadow: '0 2px 12px rgba(24, 59, 86, 0.07)',
+  padding: '32px 28px',
+  margin: '0 16px',
+};
+
+const titleStyle: CSSProperties = {
+  color: '#183b56',
+  fontWeight: 700,
+  fontSize: 36,
+  marginBottom: 24,
+  textAlign: 'center',
+};
+
+const sectionTitleStyle: CSSProperties = {
+  fontWeight: 700,
+  fontSize: 22,
+  color: '#183b56',
+};
+
+const paragraphStyle: CSSProperties = {
+  color: '#183b56',
+  fontSize: 17,
+  marginTop: 8,
+  marginBottom: 0,
+  lineHeight: 1.5,
+};
+
+const buttonStyle: CSSProperties = {
+  background: 'linear-gradient(90deg, #6ec1e4 0%, #4a90e2 100%)',
+  color: '#fff',
+  fontWeight: 600,
+  fontSize: 16,
+  border: 'none',
+  borderRadius: 30,
+  padding: '12px 24px',
+  cursor: 'pointer',
+  boxShadow: '0 2px 8px rgba(24, 59, 86, 0.08)',
+  transition: 'background 0.2s',
+};
+
+const iconWrapperStyle: CSSProperties = {
+  background: '#e3f0f7',
+  borderRadius: '50%',
+  width: 64,
+  height: 64,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  marginRight: 16,
+};
+
+export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onBack, onSignOut, userEmail }) => {
   const [inputMessage, setInputMessage] = useState('');
+  const [hasConsent, setHasConsent] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   
   const {
@@ -40,17 +106,11 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onBack, onSignOut 
   };
 
   return (
-    <div style={{
-      height: '100vh',
-      display: 'flex',
-      flexDirection: 'column',
-      background: '#f7fbfd',
-      fontFamily: 'Inter, Arial, sans-serif',
-    }}>
+    <div style={containerStyle}>
       {/* Header */}
       <div style={{
         background: '#fff',
-        padding: '16px 24px',
+        padding: '20px 24px',
         borderBottom: '1px solid #e3f0f7',
         display: 'flex',
         alignItems: 'center',
@@ -73,23 +133,32 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onBack, onSignOut 
               ←
             </button>
           )}
-          <div>
-            <h2 style={{
-              color: '#183b56',
-              fontSize: '20px',
-              margin: 0,
-              fontWeight: 600,
-            }}>
-              Asistente de Anamnesis
-            </h2>
-            <p style={{
-              color: isConnected ? '#10b981' : '#ef4444',
-              fontSize: '14px',
-              margin: 0,
-              marginTop: '4px',
-            }}>
-              {isConnected ? '● Conectado' : '● Desconectado'}
-            </p>
+          <div style={{ display: 'flex', alignItems: 'center' }}>
+            <div style={iconWrapperStyle}>
+              <svg width="32" height="32" viewBox="0 0 64 64" fill="none">
+                <circle cx="32" cy="32" r="32" fill="#b3d4e6" />
+                <rect x="28" y="16" width="8" height="32" rx="4" fill="#fff" />
+                <rect x="16" y="28" width="32" height="8" rx="4" fill="#fff" />
+              </svg>
+            </div>
+            <div>
+              <h2 style={{
+                color: '#183b56',
+                fontSize: '20px',
+                margin: 0,
+                fontWeight: 600,
+              }}>
+                Asistente de Anamnesis
+              </h2>
+              <p style={{
+                color: isConnected ? '#10b981' : '#ef4444',
+                fontSize: '14px',
+                margin: 0,
+                marginTop: '4px',
+              }}>
+                {isConnected ? '● Conectado' : '● Desconectado'}
+              </p>
+            </div>
           </div>
         </div>
         
@@ -115,21 +184,32 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onBack, onSignOut 
             Limpiar chat
           </button>
           {onSignOut && (
-            <button
-              onClick={onSignOut}
-              style={{
-                background: '#fee2e2',
-                border: 'none',
-                borderRadius: '8px',
-                padding: '8px 16px',
-                cursor: 'pointer',
-                color: '#dc2626',
-                fontSize: '14px',
-                fontWeight: 600,
-              }}
-            >
-              Cerrar sesion
-            </button>
+            <>
+              {userEmail && (
+                <span style={{
+                  color: '#6b7280',
+                  fontSize: '14px',
+                  marginRight: '8px',
+                }}>
+                  {userEmail}
+                </span>
+              )}
+              <button
+                onClick={onSignOut}
+                style={{
+                  background: '#fee2e2',
+                  border: 'none',
+                  borderRadius: '8px',
+                  padding: '8px 16px',
+                  cursor: 'pointer',
+                  color: '#dc2626',
+                  fontSize: '14px',
+                  fontWeight: 600,
+                }}
+              >
+                Cerrar sesion
+              </button>
+            </>
           )}
         </div>
       </div>
@@ -143,30 +223,185 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onBack, onSignOut 
         flexDirection: 'column',
         gap: '16px',
       }}>
-        {messages.length === 0 && !streamingMessage && (
+        {messages.length === 0 && !streamingMessage && !hasConsent && (
           <div style={{
-            textAlign: 'center',
-            color: '#6b7280',
-            marginTop: '40px',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '40px 16px',
+            flex: 1,
           }}>
             <div style={{
               background: '#e3f0f7',
               borderRadius: '50%',
-              width: 80,
-              height: 80,
+              width: 120,
+              height: 120,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              margin: '0 auto 16px',
+              marginBottom: 32,
             }}>
-              💬
+              <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
+                <circle cx="32" cy="32" r="32" fill="#b3d4e6" />
+                <rect x="28" y="16" width="8" height="32" rx="4" fill="#fff" />
+                <rect x="16" y="28" width="32" height="8" rx="4" fill="#fff" />
+              </svg>
             </div>
-            <h3 style={{ color: '#183b56', marginBottom: '8px' }}>
-              ¡Hola! Soy tu asistente médico
-            </h3>
-            <p style={{ margin: 0 }}>
-              Puedes hacerme preguntas sobre síntomas, condiciones médicas o buscar orientación general de salud.
+            <h1 style={titleStyle}>Consentimiento Informado</h1>
+
+            <div style={{...cardStyle, maxWidth: 600, textAlign: 'left'}}>
+              <div style={{ marginBottom: 18 }}>
+                <span style={sectionTitleStyle}>Aclaración del Agente y Propósito</span>
+                <p style={paragraphStyle}>
+                  Soy un asistente de inteligencia artificial diseñado para realizar anamnesis básicas y recopilar información médica de manera estructurada. Mi propósito es ayudarte a organizar tu información de salud y ofrecer orientación general.
+                </p>
+              </div>
+
+              <div style={{ marginBottom: 18 }}>
+                <span style={{...sectionTitleStyle, color: '#dc2626'}}>⚠️ Limitaciones Importantes</span>
+                <p style={{...paragraphStyle, color: '#dc2626'}}>
+                  <strong>Esta interacción NO sustituye la atención médica profesional.</strong> No realizo diagnósticos definitivos ni prescribo tratamientos. Siempre consulta con un profesional de la salud para evaluación y tratamiento adecuados.
+                </p>
+              </div>
+
+              <div style={{ marginBottom: 18 }}>
+                <span style={sectionTitleStyle}>Alcance de la Interacción</span>
+                <p style={paragraphStyle}>
+                  Realizaré una <strong>anamnesis básica</strong> para recopilar tu información médica y proporcionaré una <strong>estimación probabilística</strong> basada en los datos que compartas. Los resultados son orientativos y requieren validación médica profesional.
+                </p>
+              </div>
+
+              <div>
+                <span style={sectionTitleStyle}>🔒 Manejo de Datos</span>
+                <p style={paragraphStyle}>
+                  Tu información se maneja únicamente durante esta sesión. <strong>Todos los datos se eliminan automáticamente al finalizar la conversación.</strong> No se almacenan registros permanentes de tu información médica personal.
+                </p>
+              </div>
+            </div>
+
+            <div style={{
+              textAlign: 'center',
+              marginTop: 24,
+            }}>
+              <p style={{...paragraphStyle, textAlign: 'center', marginBottom: 20}}>
+                <strong>¿Deseas continuar con la anamnesis?</strong>
+              </p>
+              <p style={{...paragraphStyle, fontSize: 15, textAlign: 'center', marginBottom: 24}}>
+                Al aceptar, confirmas que has leído y entendido las condiciones anteriores.
+              </p>
+              <div style={{
+                display: 'flex',
+                gap: '12px',
+                justifyContent: 'center',
+                flexWrap: 'wrap',
+              }}>
+                <button
+                  onClick={() => setHasConsent(true)}
+                  style={{
+                    ...buttonStyle,
+                    background: 'linear-gradient(90deg, #10b981 0%, #059669 100%)',
+                  }}
+                  onMouseOver={(event) => {
+                    event.currentTarget.style.background = 'linear-gradient(90deg, #059669 0%, #10b981 100%)';
+                  }}
+                  onMouseOut={(event) => {
+                    event.currentTarget.style.background = 'linear-gradient(90deg, #10b981 0%, #059669 100%)';
+                  }}
+                >
+                  Acepto y Continúo
+                </button>
+                <button
+                  onClick={() => {
+                    if (onSignOut) {
+                      onSignOut();
+                    }
+                  }}
+                  style={{
+                    ...buttonStyle,
+                    background: 'linear-gradient(90deg, #ef4444 0%, #dc2626 100%)',
+                  }}
+                  onMouseOver={(event) => {
+                    event.currentTarget.style.background = 'linear-gradient(90deg, #dc2626 0%, #ef4444 100%)';
+                  }}
+                  onMouseOut={(event) => {
+                    event.currentTarget.style.background = 'linear-gradient(90deg, #ef4444 0%, #dc2626 100%)';
+                  }}
+                >
+                  No Acepto
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {messages.length === 0 && !streamingMessage && hasConsent && (
+          <div style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '40px 16px',
+            flex: 1,
+          }}>
+            <div style={{
+              background: '#e3f0f7',
+              borderRadius: '50%',
+              width: 120,
+              height: 120,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              marginBottom: 32,
+            }}>
+              <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
+                <circle cx="32" cy="32" r="32" fill="#b3d4e6" />
+                <rect x="28" y="16" width="8" height="32" rx="4" fill="#fff" />
+                <rect x="16" y="28" width="32" height="8" rx="4" fill="#fff" />
+              </svg>
+            </div>
+            <h1 style={titleStyle}>Bienvenido a tu Anamnesis Digital</h1>
+            <p style={{...paragraphStyle, textAlign: 'center', marginBottom: 32, maxWidth: 600}}>
+              Una anamnesis es la recopilación sistemática de información médica que me ayudará a entender mejor tu situación de salud actual.
             </p>
+
+            <div style={{...cardStyle, maxWidth: 700, textAlign: 'left'}}>
+              <div style={{ marginBottom: 18 }}>
+                <span style={sectionTitleStyle}>📋 Información que necesito recopilar</span>
+                <div style={{ marginTop: 16 }}>
+                  <p style={{...paragraphStyle, fontSize: 15}}>
+                    <strong>• Motivo de Consulta:</strong> ¿Qué te trae hoy aquí?
+                  </p>
+                  <p style={{...paragraphStyle, fontSize: 15}}>
+                    <strong>• Enfermedad Actual:</strong> Síntoma principal, inicio, características
+                  </p>
+                  <p style={{...paragraphStyle, fontSize: 15}}>
+                    <strong>• Antecedentes Personales:</strong> Enfermedades previas, cirugías, alergias
+                  </p>
+                  <p style={{...paragraphStyle, fontSize: 15}}>
+                    <strong>• Antecedentes Familiares:</strong> Enfermedades en familiares directos
+                  </p>
+                  <p style={{...paragraphStyle, fontSize: 15}}>
+                    <strong>• Hábitos de Vida:</strong> Tabaquismo, alcohol, ejercicio, dieta
+                  </p>
+                  <p style={{...paragraphStyle, fontSize: 15, marginBottom: 0}}>
+                    <strong>• Síntomas Asociados:</strong> Otros síntomas relacionados
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div style={{
+              textAlign: 'center',
+              marginTop: 24,
+            }}>
+              <p style={{...paragraphStyle, textAlign: 'center', marginBottom: 8}}>
+                <strong>¡Comencemos!</strong> Puedes contarme sobre tu consulta de forma natural.
+              </p>
+              <p style={{...paragraphStyle, fontSize: 15, textAlign: 'center', color: '#6b7280', fontStyle: 'italic'}}>
+                Ejemplo: "Tengo dolor en el pecho desde ayer, es constante y me da mareo..."
+              </p>
+            </div>
           </div>
         )}
 

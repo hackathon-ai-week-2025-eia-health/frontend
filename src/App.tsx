@@ -224,6 +224,7 @@ function App() {
       <ChatInterface
         onBack={() => setCurrentView('intro')}
         onSignOut={handleSignOut}
+        userEmail={userEmail}
       />
     );
   }
