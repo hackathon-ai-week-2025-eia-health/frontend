@@ -3,9 +3,10 @@ import { useAnamnesisChat } from './useAnamnesisChat';
 
 interface ChatInterfaceProps {
   onBack?: () => void;
+  onSignOut?: () => void;
 }
 
-export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onBack }) => {
+export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onBack, onSignOut }) => {
   const [inputMessage, setInputMessage] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   
@@ -92,20 +93,45 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onBack }) => {
           </div>
         </div>
         
-        <button
-          onClick={clearChat}
+        <div
           style={{
-            background: '#f3f4f6',
-            border: 'none',
-            borderRadius: '8px',
-            padding: '8px 16px',
-            cursor: 'pointer',
-            color: '#6b7280',
-            fontSize: '14px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '12px',
           }}
         >
-          Limpiar chat
-        </button>
+          <button
+            onClick={clearChat}
+            style={{
+              background: '#f3f4f6',
+              border: 'none',
+              borderRadius: '8px',
+              padding: '8px 16px',
+              cursor: 'pointer',
+              color: '#6b7280',
+              fontSize: '14px',
+            }}
+          >
+            Limpiar chat
+          </button>
+          {onSignOut && (
+            <button
+              onClick={onSignOut}
+              style={{
+                background: '#fee2e2',
+                border: 'none',
+                borderRadius: '8px',
+                padding: '8px 16px',
+                cursor: 'pointer',
+                color: '#dc2626',
+                fontSize: '14px',
+                fontWeight: 600,
+              }}
+            >
+              Cerrar sesion
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Messages Container */}
